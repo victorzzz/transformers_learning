@@ -28,13 +28,10 @@ class TimeSeriesTransformer(L.LightningModule):
         dim_feedforward:int, 
         dropout:float, 
         sequences:list[tuple[int, list[str]]],
-        number_pred_features:int,
-        pred_len:int=8,
-        step:int=2):
+        number_pred_features:int):
         
         super(TimeSeriesTransformer, self).__init__()
-        
-        self.num_predictions = pred_len // step  # Number of future predictions based on the step
+
         self.number_pred_features = number_pred_features
 
         # Calculate the total sequence length by summing all the history lengths
@@ -51,28 +48,30 @@ class TimeSeriesTransformer(L.LightningModule):
         
         self.input_embedding = nn.Sequential(
             nn.Linear(input_dim, d_model),
-            nn.ReLU(),
-            nn.Linear(d_model, d_model)
+            # nn.ReLU(),
+            # nn.Linear(d_model, d_model)
         )
         
         self.fc_out = nn.Sequential(
-            nn.Linear(d_model, d_model),
-            nn.ReLU(),
-            nn.Linear(d_model, self.num_predictions * self.number_pred_features)  # Output dimension: pred_len * number of predicted features
+            nn.Linear(d_model, self.number_pred_features),
+            # nn.ReLU(),
+            # nn.Linear(d_model, self.number_pred_features)  
         )
         
         self.positional_encoding = PositionalEncoding(d_model, max_len=total_seq_len)
         
-        self.tgt_mask = None
+        # self.tgt_mask = None
 
-    def forward(self, src, tgt, src_key_padding_mask=None, tgt_key_padding_mask=None):
+    def forward(self, src, tgt):
         
+        """
         len_src = len(src)
         
         if self.tgt_mask is None or self.tgt_mask.size(0) != len_src:
             device = src.device
             mask = nn.Transformer.generate_square_subsequent_mask(len_src).to(device)
             self.tgt_mask = mask        
+        """
         
         src = self.input_embedding(src)
         tgt = self.input_embedding(tgt)
@@ -81,18 +80,14 @@ class TimeSeriesTransformer(L.LightningModule):
 
         output = self.transformer(
             src, tgt,
-            tgt_mask=self.tgt_mask,
-            src_key_padding_mask=src_key_padding_mask,
-            tgt_key_padding_mask=tgt_key_padding_mask
+            #tgt_mask=self.tgt_mask
         )
         output = self.fc_out(output[:, -1, :])  # Use the last time step output for prediction
-        output = output.view(-1, self.num_predictions, self.number_pred_features)  # Reshape to (batch_size, num_predictions, num_features)
+        output = output.view(-1, self.number_pred_features)  # Reshape to (batch_size, num_features)
         return output
 
     def training_step(self, batch, batch_idx):
         src, tgt, y = batch
-        # src_key_padding_mask = (src[:, :, 0] == 0).T
-        # tgt_key_padding_mask = (tgt[:, :, 0] == 0).T
         output = self(src, tgt)
         loss = nn.MSELoss()(output, y)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
@@ -110,20 +105,30 @@ class TimeSeriesTransformer(L.LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
         return optimizer
     
-    def predict(self, src: torch.Tensor, max_pred_len: int) -> torch.Tensor:
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        src = batch  # Assuming batch contains only the source tensor      
+        
+        # Embed and add positional encoding to source
         src = self.input_embedding(src)
         src = self.positional_encoding(src)
-        
-        predictions = []
-        memory = self.transformer.encoder(src)
-        tgt = torch.zeros((1, 1, src.size(-1)), device=src.device)
-        
-        for _ in range(max_pred_len):
-            tgt = self.positional_encoding(tgt)
-            out = self.transformer.decoder(tgt, memory)
-            out = self.fc_out(out[:, -1, :])  # Use the last time step output for prediction
-            predictions.append(out)
-            tgt = torch.cat((tgt, out.unsqueeze(0)), dim=0)
 
-        predictions = torch.cat(predictions, dim=0)
-        return predictions
+        # Encode the source
+        memory = self.transformer.encoder(src)
+
+        # Initialize prediction tensor
+        batch_size = memory.size(1)
+        pred = torch.zeros(batch_size, self.number_pred_features).to(memory.device)
+
+        # Initial input token (e.g., start of sequence token)
+        tgt = self.input_embedding(pred.unsqueeze(0))
+        tgt = self.positional_encoding(tgt)
+
+        # Iteration based on the window_size or any predefined steps
+        for _ in range(8):  
+            output = self.transformer.decoder(tgt, memory)
+            output = self.fc_out(output[-1, :, :])
+            pred = output.view(-1, self.number_pred_features)
+            tgt = torch.cat([tgt, self.input_embedding(pred.unsqueeze(0))], dim=0)
+
+        return pred    
+    

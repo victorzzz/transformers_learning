@@ -1,23 +1,25 @@
 import pandas as pd
 import numpy as np
 import lightning as L
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler
 
-import timeseries_dataset as ts_ds
+import timeseries_dataset_for_encoder as ts_ds_encoder
 
-class TimeSeriesDataModule(L.LightningDataModule):
+class TimeSeriesDataModuleForEncoder(L.LightningDataModule):
     def __init__(
         self, 
         data:pd.DataFrame, 
         sequences:list[tuple[int, list[str]]],
-        pred_columns:list[str], 
-        batch_size=32):
+        pred_columns:list[str],
+        user_tensor_dataset:bool, 
+        batch_size):
         
         super().__init__()
         self.data = data
         self.sequences = sequences
         self.pred_columns = pred_columns
+        self.user_tensor_dataset = user_tensor_dataset
         self.batch_size = batch_size
         self.scaler = StandardScaler()
 
@@ -38,12 +40,18 @@ class TimeSeriesDataModule(L.LightningDataModule):
         if isinstance(scalled_val_data, np.ndarray):
             val_data = pd.DataFrame(scalled_val_data, columns=self.data.columns)
         
-        self.train_dataset = ts_ds.TimeSeriesDataset(train_data, self.sequences, self.pred_columns)
-        self.val_dataset = ts_ds.TimeSeriesDataset(val_data, self.sequences, self.pred_columns)
+        if self.user_tensor_dataset:
+            train_src, train_y = ts_ds_encoder.to_sequences(train_data, self.sequences, self.pred_columns)
+            self.train_dataset = TensorDataset(train_src, train_y)
+            
+            val_scr, val_y = ts_ds_encoder.to_sequences(val_data, self.sequences, self.pred_columns)
+            self.val_dataset = TensorDataset(val_scr, val_y)
+        else:
+            self.train_dataset = ts_ds_encoder.TimeSeriesDatasetForEncoder(train_data, self.sequences, self.pred_columns)
+            self.val_dataset = ts_ds_encoder.TimeSeriesDatasetForEncoder(val_data, self.sequences, self.pred_columns)
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
 
     def val_dataloader(self):
         return DataLoader(self.val_dataset, batch_size=self.batch_size)
-    

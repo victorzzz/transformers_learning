@@ -1,4 +1,5 @@
 import pandas as pd
+import datetime as dt
 import numpy as np
 import lightning as L
 import torch
@@ -6,58 +7,40 @@ import matplotlib.pyplot as plt
 
 import timeseries_data_module as ts_dm
 import test_timeseries_generator as test_ts_gen
-import timeseries_with_transformer_model as ts_transformer_model
 
-torch.set_float32_matmul_precision('medium')
+import timeseries_transformer_common as ts_transformer_common
 
-data:pd.DataFrame = test_ts_gen.generate_test_data(50000)
-sequences:list[tuple[int,list[str]]] = [(50, ['value1'])]
-pred_columns:list[str] = ['value1']
+if __name__ == "__main__":
 
-# Create data module
-data_module = ts_dm.TimeSeriesDataModule(
-    data,
-    batch_size=1024,
-    sequences=sequences,
-    pred_columns=pred_columns,
-    pred_len=8,
-    step=2
-)
+    torch.set_float32_matmul_precision('medium')
 
-# Calculate input_dim based on concatenated sequences
-input_dim = sum(len(columns) for _, columns in sequences)
+    data:pd.DataFrame = test_ts_gen.generate_test_data(8192)
 
-# Create model
-model = ts_transformer_model.TimeSeriesTransformer(
-    input_dim=input_dim,  # Number of input features
-    d_model=64,  # Embedding dimension
-    nhead=8,  # Number of heads in the multiheadattention models
-    num_encoder_layers=3,
-    num_decoder_layers=3,
-    dim_feedforward=256,
-    dropout=0.1,
-    sequences=sequences,  # Pass sequences for total_seq_len calculation
-    number_pred_features=len(pred_columns),  # Number of predicted features
-    pred_len=8,  # Number of future steps to predict
-    step=2  # Step size for future predictions
-)
+    plt.plot(data['value1'], label='value1')
+    plt.show()
 
-# Train the model
-trainer = L.Trainer(max_epochs=5)
-trainer.fit(model, data_module)
+    # Create data module
+    data_module = ts_dm.TimeSeriesDataModule(
+        data,
+        batch_size=32,
+        sequences=ts_transformer_common.sequences,
+        pred_columns=ts_transformer_common.pred_columns
+    )
 
-# Validate the model
-trainer.validate(model, data_module)
+    model = ts_transformer_common.create_timeseries_transformer_model()
 
-model.eval()
+    # Train the model
+    trainer = L.Trainer(max_epochs=30, log_every_n_steps=3)
+    trainer.fit(model, data_module)
 
-model_path = "final_model.ckpt"
-torch.save(model.state_dict(), model_path)
+    # Validate the model
+    trainer.validate(model, data_module)
 
-prediction = trainer.predict(model, datamodule=data_module)
+    model.eval()
 
-# Plot the prediction
-if isinstance(prediction, torch.Tensor):
-    prediction = prediction.detach().numpy()    
-    plt.plot(prediction[0], label='Prediction')    
+    date_str = dt.datetime.now().strftime("%Y-%m-%d-%H-%M")
+    model_path = f"models/final_model{date_str}.ckpt"
 
+    trainer.save_checkpoint(model_path)
+
+    print(f"Checkpoint save manually at {model_path}")
