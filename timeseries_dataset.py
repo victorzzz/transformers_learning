@@ -20,7 +20,7 @@ class TimeSeriesDataset(Dataset):
         self.max_history_len = max(seq[0] for seq in sequences)
 
     def __len__(self):
-        result = len(self.data) - self.max_history_len - 1  # Calculate the number of samples
+        result = len(self.data) - self.max_history_len - 1 
         return result
 
     def __getitem__(self, idx):

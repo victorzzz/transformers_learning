@@ -10,7 +10,7 @@ def generate_test_data(num_rows:int = 50000) -> pd.DataFrame:
     
     return df
 
-def generate_timeseries(num_rows:int, params:list[tuple[float, float, float]]) -> pd.DataFrame:
+def generate_timeseries(num_rows:int, params:list[tuple[float, float, float, float]]) -> pd.DataFrame:
     # Generate timestamp values
     timestamp = np.arange(1, num_rows + 1)
     
@@ -18,16 +18,16 @@ def generate_timeseries(num_rows:int, params:list[tuple[float, float, float]]) -
     df = pd.DataFrame({'timestamp': timestamp})
     
     # Iterate over each tuple in params to create additional sine wave columns with random noise
-    for idx, (period, amplitude, phase) in enumerate(params, start=1):
+    for idx, (period, amplitude, phase, randomness) in enumerate(params, start=1):
         column_name = f'value{idx}'
         # Generate sine values with added random noise
-        noise = np.random.uniform(-1.0, 1.0, num_rows)
+        noise = np.random.uniform(-randomness, randomness, num_rows)
         df[column_name] = amplitude * np.sin(2 * np.pi * (timestamp + phase) / period) + noise
     
     return df.astype('float32', copy=True)    
 
 def generate_ts_two_values(num_rows:int) -> pd.DataFrame:
-    return generate_timeseries(num_rows, [(10, 23.0, 5.0), (30, 71.0, -3.0)])
+    return generate_timeseries(num_rows, [(10, 23.0, 7.0, 3.0), (30, 71.0, -3.0, 5.0)])
 
 def add_mult_values(df:pd.DataFrame, c1:str, c2:str) -> pd.DataFrame:
     df[f'{c1}_mult_{c2}'] = df[c1] * df[c2]

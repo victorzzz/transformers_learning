@@ -8,60 +8,55 @@ class TimeSeriesDatasetForEncoder(Dataset):
         self, 
         data:pd.DataFrame, 
         sequences:list[tuple[int, list[str]]],
-        pred_columns:list[str]):
-        """
-        data: DataFrame containing all the data
-        sequences: List of tuples [(history_len, [column names]), ...]
-        pred_columns: List of column names for the predicted values
-        """
+        pred_columns:list[str],
+        pred_distance:int):
+
         self.data = data
         self.sequences = sequences
         self.pred_columns = pred_columns
-        self.result_seq_len = sum((seq[0] * len(seq[1])) for seq in sequences)
+        self.pred_distance = pred_distance
+        
         self.history_len = max(seq[0] for seq in sequences)
         self.y_len = len(pred_columns)
+        self.input_columns = get_unique_strings(sequences)
+        self.x_len = len(self.input_columns)
+        self.result_rows = len(data) - self.history_len - pred_distance
 
     def __len__(self):
-        result = len(self.data) - self.history_len
-        return result
+        return self.result_rows
 
     def __getitem__(self, idx):
-        src_sequences = []
+        window = self.data.iloc[idx:(idx + self.history_len)][self.input_columns].values
+        after_window = self.data.data.iloc[idx + self.history_len + self.pred_distance][self.pred_columns].values
         
-        j = idx
-        for history_len, columns in self.sequences:
-            src = self.data.iloc[j:j+history_len][columns].values
-            src_sequences.append(src)
-            j += history_len
+        x_tensor = torch.tensor(window, dtype=torch.float32).view(self.history_len, self.x_len)
+        y_tensor = torch.tensor(after_window, dtype=torch.float32).view(self.y_len)
         
-        y = self.data.iloc[idx+1][self.pred_columns].values  
-        
-        src_sequence_tensor = torch.tensor(src_sequences, dtype=torch.float32).view(self.result_seq_len, 1)
-        y_tensor = torch.tensor(y, dtype=torch.float32).view(self.y_len)
-        
-        return src_sequence_tensor, y_tensor
+        return x_tensor, y_tensor
     
 def to_sequences(
         data:pd.DataFrame, 
         sequences:list[tuple[int, list[str]]],
-        pred_columns:list[str]):
+        pred_columns:list[str],
+        pred_distance:int):
     
-    result_seq_len = sum((seq[0] * len(seq[1])) for seq in sequences)
     max_hystory_len = max(seq[0] for seq in sequences)
-    
     y_len = len(pred_columns)
+    input_columns = get_unique_strings(sequences)
+    x_len = len(input_columns)
+    result_rows = len(data) - max_hystory_len - pred_distance
     
-    result_rows = len(data) - max_hystory_len
-    
-    src_result = []
-    y_result = []
+    x = []
+    y = []
     for i in range(result_rows):
-        j = i
-        for history_len, columns in sequences:
-            src = data.iloc[j:j+history_len][columns].values
-            src_result.append(src)
-            j += history_len
-        
-        y = data[i + max_hystory_len][pred_columns].values
-        y_result.append(y)
-    return torch.tensor(src_result, dtype=torch.float32).view(-1, result_seq_len, 1), torch.tensor(y, dtype=torch.float32).view(-1, y_len)
+        window = data.iloc[i:(i + max_hystory_len)][input_columns].values
+        after_window = data.iloc[i + max_hystory_len + pred_distance][pred_columns].values
+        x.append(window)
+        y.append(after_window)
+    return torch.tensor(x, dtype=torch.float32).view(-1, max_hystory_len, x_len), torch.tensor(y, dtype=torch.float32).view(-1, y_len)
+
+def get_unique_strings(data: list[tuple[int, list[str]]]) -> list[str]:
+    unique_strings = set()
+    for _, strings in data:
+        unique_strings.update(strings)
+    return list(unique_strings)
