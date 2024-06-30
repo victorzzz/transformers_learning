@@ -26,8 +26,8 @@ class TimeSeriesDatasetForEncoder(Dataset):
         return self.result_rows
 
     def __getitem__(self, idx):
-        window = self.data.iloc[idx:(idx + self.history_len)][self.input_columns].values
-        after_window = self.data.data.iloc[idx + self.history_len + self.pred_distance][self.pred_columns].values
+        window = self.data.iloc[idx:(idx + self.history_len)][self.input_columns].to_numpy()
+        after_window = self.data.data.iloc[idx + self.history_len + self.pred_distance][self.pred_columns].to_numpy()
         
         x_tensor = torch.tensor(window, dtype=torch.float32).view(self.history_len, self.x_len)
         y_tensor = torch.tensor(after_window, dtype=torch.float32).view(self.y_len)
@@ -35,25 +35,26 @@ class TimeSeriesDatasetForEncoder(Dataset):
         return x_tensor, y_tensor
     
 def to_sequences(
-        data:pd.DataFrame, 
-        sequences:list[tuple[int, list[str]]],
-        pred_columns:list[str],
-        pred_distance:int):
+        data: pd.DataFrame, 
+        sequences: list[tuple[int, list[str]]],
+        pred_columns: list[str],
+        pred_distance: int):
     
-    max_hystory_len = max(seq[0] for seq in sequences)
+    max_history_len = max(seq[0] for seq in sequences)
     y_len = len(pred_columns)
     input_columns = get_unique_strings(sequences)
     x_len = len(input_columns)
-    result_rows = len(data) - max_hystory_len - pred_distance
+    result_rows = len(data) - max_history_len - pred_distance
     
-    x = []
-    y = []
+    # Preallocate numpy arrays
+    x = np.zeros((result_rows, max_history_len, x_len), dtype=np.float32)
+    y = np.zeros((result_rows, y_len), dtype=np.float32)
+    
     for i in range(result_rows):
-        window = data.iloc[i:(i + max_hystory_len)][input_columns].values
-        after_window = data.iloc[i + max_hystory_len + pred_distance][pred_columns].values
-        x.append(window)
-        y.append(after_window)
-    return torch.tensor(x, dtype=torch.float32).view(-1, max_hystory_len, x_len), torch.tensor(y, dtype=torch.float32).view(-1, y_len)
+        x[i] = data.iloc[i:(i + max_history_len)][input_columns].to_numpy()
+        y[i] = data.iloc[i + max_history_len + pred_distance][pred_columns].to_numpy()
+    
+    return torch.tensor(x, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)
 
 def get_unique_strings(data: list[tuple[int, list[str]]]) -> list[str]:
     unique_strings = set()

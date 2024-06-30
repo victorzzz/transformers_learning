@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torchmetrics
 
 import lightning as L
 
@@ -29,12 +30,17 @@ class TransformerEncoderModel(L.LightningModule):
                  max_pos_encoder_length:int, 
                  nhead:int, 
                  num_layers:int, 
-                 dropout:float=0.1):
+                 dropout:float):
         super(TransformerEncoderModel, self).__init__()
+
+        self.save_hyperparameters(ignore=["model"])
+        
+        self.train_r2 = torchmetrics.R2Score()
+        self.val_r2 = torchmetrics.R2Score()
 
         self.encoder = nn.Linear(input_dim, d_model)
         self.pos_encoder = PositionalEncodingForEncoder(d_model, max_pos_encoder_length)
-        encoder_layers = nn.TransformerEncoderLayer(d_model, nhead, dropout=dropout)
+        encoder_layers = nn.TransformerEncoderLayer(d_model, nhead, dropout=dropout, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers)
         self.decoder = nn.Linear(d_model*max_pos_encoder_length, out_dim)
 
@@ -58,6 +64,10 @@ class TransformerEncoderModel(L.LightningModule):
         y_hat = self.forward(x)
         loss = nn.MSELoss()(y_hat, y)
         self.log('train_loss', loss, on_epoch=True, on_step=True, prog_bar=True)
+        
+        r2 = self.train_r2(y_hat, y)
+        self.log('train_r2', r2, on_epoch=True)
+        
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -65,6 +75,10 @@ class TransformerEncoderModel(L.LightningModule):
         y_hat = self.forward(x)
         loss = nn.MSELoss()(y_hat, y)
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
+        
+        r2 = self.train_r2(y_hat, y)
+        self.log('val_r2', r2, on_epoch=True)
+        
         return loss
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):

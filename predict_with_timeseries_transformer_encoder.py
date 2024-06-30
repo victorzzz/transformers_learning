@@ -15,7 +15,7 @@ import timeseries_transformer_encoder_common as ts_tr_enc_common
 import timeseries_datamodule_for_encoder as ts_dm_encoder
 import test_timeseries_generator as test_ts_gen
 
-def transform_predictions_to_numpy(predictions):
+def transform_predictions_to_numpy(predictions) -> np.ndarray:
     """
     Transforms the list of tensors (predictions) into a single numpy array.
     
@@ -36,15 +36,18 @@ def transform_predictions_to_numpy(predictions):
 
 if __name__ == "__main__":
 
-    data:pd.DataFrame = test_ts_gen.generate_test_data(4096)
+    torch.set_float32_matmul_precision('medium')
 
-    model = ts_tr_enc_common.load_timeseries_transformer_encoder_model("models/final_tr_enc_2024-06-29-01-43.ckpt")
+    data:pd.DataFrame = test_ts_gen.generate_test_data(8192 * 16)
+
+    model = ts_tr_enc_common.load_timeseries_transformer_encoder_model("models/final_tr_enc_2024-06-29-23-57.ckpt")
 
     data_module = ts_dm_encoder.TimeSeriesDataModuleForEncoder (
             data,
             sequences=ts_tr_enc_common.sequences,
             pred_columns=ts_tr_enc_common.pred_columns,
-            pred_distance=4,
+            scaling_column_groups=ts_tr_enc_common.scaling_column_groups,
+            pred_distance=ts_tr_enc_common.prediction_distance,
             user_tensor_dataset=True,
             batch_size=32
         )
@@ -59,22 +62,18 @@ if __name__ == "__main__":
         raise ValueError("No predictions made")
 
     numpy_predictions = transform_predictions_to_numpy(historical_predictions)
-    scaler = data_module.get_scaler()
+    numpy_predictions_inverse_scaled = data_module.inverse_transform_predictions(numpy_predictions, ts_tr_enc_common.pred_columns[0])
     
-    z = np.zeros_like(numpy_predictions)
+    train_border = int(0.8*len(data))
+
+    history_len = max(seq[0] for seq in ts_tr_enc_common.sequences)
+        
+    # train_data:pd.DataFrame = data[:train_border]
+    val_data:pd.DataFrame = data[train_border + history_len + ts_tr_enc_common.prediction_distance:]
+    actual_values = val_data[ts_tr_enc_common.pred_columns[0]].to_numpy()
     
-    fff = np.column_stack((numpy_predictions, z, z, z, z, z))
-    
-    fff = scaler.inverse_transform(fff) 
-    
-    if not isinstance(fff, np.ndarray):
-        raise ValueError("No predictions made")
-    
-    numpy_predictions_inverse_scaled = fff[:,0]
-    
-    plt.plot(numpy_predictions, label='Predicted value1')
     plt.plot(numpy_predictions_inverse_scaled, label='Predicted value1 inverse scaled')
-    plt.plot(data['value1'], label='Actual value1')
+    plt.plot(actual_values, label='Actual value1')
     plt.legend()
     plt.show()
 

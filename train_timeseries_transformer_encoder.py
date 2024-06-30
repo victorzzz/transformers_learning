@@ -14,19 +14,20 @@ if __name__ == "__main__":
 
     torch.set_float32_matmul_precision('medium')
 
-    data:pd.DataFrame = test_ts_gen.generate_test_data(8192)
+    data:pd.DataFrame = test_ts_gen.generate_test_data(8192 * 16)
 
-    # plt.plot(data['value1'], label='value1')
-    # plt.show()
+    plt.plot(data['result'], label='value1')
+    plt.show()
 
     # Create data module
     data_module = ts_dm_encoder.TimeSeriesDataModuleForEncoder (
         data,
         sequences=ts_tr_enc_common.sequences,
         pred_columns=ts_tr_enc_common.pred_columns,
-        pred_distance=4,
+        scaling_column_groups=ts_tr_enc_common.scaling_column_groups,
+        pred_distance=ts_tr_enc_common.prediction_distance,
         user_tensor_dataset=True,
-        batch_size=32
+        batch_size=128
     )
 
     model = ts_tr_enc_common.create_timeseries_transformer_encoder_model()
@@ -36,7 +37,7 @@ if __name__ == "__main__":
         # overfit_batches=5,
         # fast_dev_run=5,
         max_epochs=20, 
-        log_every_n_steps=3)
+        log_every_n_steps=5)
     
     trainer.fit(model, data_module)
 

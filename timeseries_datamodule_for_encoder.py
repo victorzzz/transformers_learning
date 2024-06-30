@@ -14,6 +14,7 @@ class TimeSeriesDataModuleForEncoder(L.LightningDataModule):
         data:pd.DataFrame, 
         sequences:list[tuple[int, list[str]]],
         pred_columns:list[str],
+        scaling_column_groups:dict[str, list[str]], # {fiting_column: [scaling1, column2, ...]}
         pred_distance:int,
         user_tensor_dataset:bool, 
         batch_size):
@@ -23,27 +24,20 @@ class TimeSeriesDataModuleForEncoder(L.LightningDataModule):
         self.data = data
         self.sequences = sequences
         self.pred_columns = pred_columns
+        self.scaling_column_groups = scaling_column_groups
         self.pred_distance = pred_distance
         self.user_tensor_dataset = user_tensor_dataset
         self.batch_size = batch_size
-        self.scaler = StandardScaler()
-
+        self.scalers:dict[str, StandardScaler] = {fitting_column: StandardScaler() for fitting_column in scaling_column_groups}
+         
     def setup(self, stage=None):
         train_border = int(0.8*len(self.data))
         
         train_data:pd.DataFrame = self.data[:train_border]
         val_data:pd.DataFrame = self.data[train_border:]
         
-        # Fit the scaler on the training dataset
-        self.scaler.fit(train_data)
-        
-        scalled_train_data = self.scaler.transform(train_data)
-        if isinstance(scalled_train_data, np.ndarray):
-            train_data = pd.DataFrame(scalled_train_data, columns=self.data.columns)
-        
-        scalled_val_data = self.scaler.transform(val_data)
-        if isinstance(scalled_val_data, np.ndarray):
-            val_data = pd.DataFrame(scalled_val_data, columns=self.data.columns)
+        self.fit_transform(train_data)
+        self.transform(val_data)
         
         if self.user_tensor_dataset:
             train_src, train_y = ts_ds_encoder.to_sequences(train_data, self.sequences, self.pred_columns, self.pred_distance)
@@ -64,5 +58,37 @@ class TimeSeriesDataModuleForEncoder(L.LightningDataModule):
     def predict_dataloader(self):
         return DataLoader(self.val_dataset, batch_size=self.batch_size)
     
-    def get_scaler(self) -> StandardScaler:
-        return self.scaler
+    def fit_transform(self, df:pd.DataFrame) -> pd.DataFrame:
+        for fitting_column, columns in self.scaling_column_groups.items():
+                df = self.fit_transform_column(self.scalers[fitting_column], df, fitting_column)
+                df = self.transform_columns(self.scalers[fitting_column], df, columns)
+        
+        return df.copy()
+    
+    def transform(self, df:pd.DataFrame) -> pd.DataFrame:
+        for fitting_column, columns in self.scaling_column_groups.items():
+            df = self.transform_columns(self.scalers[fitting_column], df, [fitting_column])
+            df = self.transform_columns(self.scalers[fitting_column], df, columns)
+        
+        return df.copy()
+    
+    def inverse_transform_predictions(self, predictions:np.ndarray, fiting_column:str) -> np.ndarray:
+        scaler:StandardScaler = self.scalers[fiting_column]
+        scaled_predictions = scaler.inverse_transform(predictions.reshape(-1, 1))
+        if isinstance(scaled_predictions, np.ndarray):
+            return scaled_predictions
+        else:
+            raise ValueError("Predictions should be numpy array")
+    
+    @staticmethod
+    def fit_transform_column(scaler:StandardScaler, df:pd.DataFrame, column:str) -> pd.DataFrame:
+        values_to_fit = df[[column]].values
+        df[[column]] = scaler.fit_transform(values_to_fit)
+        return df.copy()
+    
+    @staticmethod
+    def transform_columns(scaler:StandardScaler, df:pd.DataFrame, columns:list[str]) -> pd.DataFrame:
+        for column in columns:
+            df[[column]] = scaler.transform(df[[column]].values)
+        
+        return df.copy()
