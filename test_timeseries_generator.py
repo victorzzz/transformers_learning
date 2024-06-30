@@ -16,23 +16,27 @@ def generate_test_data(num_rows:int) -> pd.DataFrame:
     
     df:pd.DataFrame = generate_timeseries(
         num_rows, 
-        [
-            (47, 17.0, 7.0, 4.0), 
-            (77, 15.0, -31.0, 5.0), 
-            (54, 7.0, -10.0, 2.0), 
+        [   (47, 17.0, 7.0, 3.0), 
+            (77, 15.0, -31.0, 4.0), 
+            (54, 7.0, -10.0, 1.0), 
             (63, 9.0, 7.0, 1.0),
-            (32, 11.0, -10.0, 4.0), 
-            (90, 5.0, 7.0, 6.0),            
-            (593, 433.0, 33.0, 16.0),
-            (5732, 711.0, 1033.0, 28.0)])
-    df = add_mult_values(df, 'value1', 'value2', 'mult_1_2')
-    df = add_mult_values(df, 'value3', 'value4', 'mult_3_4')
-    df = add_mult_values(df, 'value5', 'value6', 'mult_5_6')
-    df = add_sum_values(df, 'value7', 'value8', 'sum_7_8')
-    df = add_sum_values(df, 'mult_1_2', 'mult_3_4', 'sum_mult_1_2_mult_3_4')
-    df = add_sum_values(df, 'sum_mult_1_2_mult_3_4', 'mult_5_6', 'sum_mult_1_2_mult_3_4_mult_5_6')
-    df = add_sum_values(df, 'sum_mult_1_2_mult_3_4_mult_5_6', 'sum_7_8', 'result')
+            (32, 11.0, -10.0, 3.0), 
+            (90, 5.0, 7.0, 2.0),            
+            (4377, 433.0, 33.0, 6.0),
+            (5732, 511.0, 1033.0, 8.0)])
     
+    value1 = df['value1']
+    value2 = df['value2']
+    value3 = df['value3']
+    value4 = df['value4']
+    value5 = df['value5']
+    value6 = df['value6']
+    value7 = df['value7']
+    value8 = df['value8']
+    
+    df["result1"] = value1 * value2 + value3 * value4 + value5 * value6 + value7
+    df["result2"] = value1 * value3 - value2 * value5 + value4 * value6 + value8   
+
     return df
 
 def generate_timeseries(num_rows:int, params:list[tuple[float, float, float, float]]) -> pd.DataFrame:

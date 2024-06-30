@@ -16,7 +16,8 @@ if __name__ == "__main__":
 
     data:pd.DataFrame = test_ts_gen.generate_test_data(8192 * 16)
 
-    plt.plot(data['result'], label='value1')
+    plt.plot(data['result1'], label='result1')
+    plt.plot(data['result2'], label='result2')
     plt.show()
 
     # Create data module
@@ -27,16 +28,16 @@ if __name__ == "__main__":
         scaling_column_groups=ts_tr_enc_common.scaling_column_groups,
         pred_distance=ts_tr_enc_common.prediction_distance,
         user_tensor_dataset=True,
-        batch_size=128
+        batch_size=64
     )
 
     model = ts_tr_enc_common.create_timeseries_transformer_encoder_model()
 
     # Train the model
     trainer = L.Trainer(
-        # overfit_batches=5,
+        # overfit_batches=1,
         # fast_dev_run=5,
-        max_epochs=20, 
+        max_epochs=5, 
         log_every_n_steps=5)
     
     trainer.fit(model, data_module)

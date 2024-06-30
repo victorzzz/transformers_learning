@@ -15,7 +15,7 @@ import timeseries_transformer_encoder_common as ts_tr_enc_common
 import timeseries_datamodule_for_encoder as ts_dm_encoder
 import test_timeseries_generator as test_ts_gen
 
-def transform_predictions_to_numpy(predictions) -> np.ndarray:
+def transform_predictions_to_numpy(predictions, number_of_variables:int) -> np.ndarray:
     """
     Transforms the list of tensors (predictions) into a single numpy array.
     
@@ -32,7 +32,7 @@ def transform_predictions_to_numpy(predictions) -> np.ndarray:
     numpy_array = concatenated_tensor.numpy()
     
     # Return the flattened numpy array
-    return numpy_array.flatten()
+    return numpy_array.reshape(-1, number_of_variables)
 
 if __name__ == "__main__":
 
@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     data:pd.DataFrame = test_ts_gen.generate_test_data(8192 * 16)
 
-    model = ts_tr_enc_common.load_timeseries_transformer_encoder_model("models/final_tr_enc_2024-06-29-23-57.ckpt")
+    model = ts_tr_enc_common.load_timeseries_transformer_encoder_model("models/final_tr_enc_2024-06-30-17-23.ckpt")
 
     data_module = ts_dm_encoder.TimeSeriesDataModuleForEncoder (
             data,
@@ -61,8 +61,11 @@ if __name__ == "__main__":
     if historical_predictions is None:
         raise ValueError("No predictions made")
 
-    numpy_predictions = transform_predictions_to_numpy(historical_predictions)
-    numpy_predictions_inverse_scaled = data_module.inverse_transform_predictions(numpy_predictions, ts_tr_enc_common.pred_columns[0])
+    numpy_predictions = transform_predictions_to_numpy(historical_predictions, len(ts_tr_enc_common.pred_columns))
+    numpy_predictions_inverse_scaled = data_module.inverse_transform_predictions(
+        numpy_predictions, 
+        ts_tr_enc_common.pred_columns[0], 
+        len(ts_tr_enc_common.pred_columns))
     
     train_border = int(0.8*len(data))
 
@@ -70,12 +73,14 @@ if __name__ == "__main__":
         
     # train_data:pd.DataFrame = data[:train_border]
     val_data:pd.DataFrame = data[train_border + history_len + ts_tr_enc_common.prediction_distance:]
-    actual_values = val_data[ts_tr_enc_common.pred_columns[0]].to_numpy()
+    actual_values = val_data[ts_tr_enc_common.pred_columns].to_numpy()
     
-    plt.plot(numpy_predictions_inverse_scaled, label='Predicted value1 inverse scaled')
-    plt.plot(actual_values, label='Actual value1')
+    plt.plot(numpy_predictions_inverse_scaled[:, 0], label='Predicted 0')
+    plt.plot(numpy_predictions_inverse_scaled[:, 1], label='Predicted 1')
+    plt.plot(actual_values[:, 0], label='Actual 0')
+    plt.plot(actual_values[:, 1], label='Actual 1')
     plt.legend()
-    plt.show()
+    plt.show(block = True)
 
     """
     # Flatten predictions to match the historical data

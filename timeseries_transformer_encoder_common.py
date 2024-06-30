@@ -14,10 +14,14 @@ scaling_column_groups:dict[str, list[str]] = {'value1_sum_value2': []}
 prediction_distance:int = 8
 """
 
-sequences:list[tuple[int,list[str]]] = [(512, ['result'])]
-pred_columns:list[str] = ['result']
-scaling_column_groups:dict[str, list[str]] = {'result': []}
-prediction_distance:int = 16
+sequences:list[tuple[int,list[str]]] = [(512, ['result1', 'result2'])]
+pred_columns:list[str] = ['result1', 'result2']
+scaling_column_groups:dict[str, list[str]] = {'result1': ['result2']}
+prediction_distance:int = 8
+d_model_param:int = 8
+nhead_param:int = 4
+num_layers_param:int = 3
+dropout_param:float = 0.1
 
 def create_timeseries_transformer_encoder_model() -> ts_tr_enc_model.TransformerEncoderModel:
     
@@ -27,12 +31,12 @@ def create_timeseries_transformer_encoder_model() -> ts_tr_enc_model.Transformer
     
     model = ts_tr_enc_model.TransformerEncoderModel(
         input_dim,  # Number of input features
-        d_model=16,  # Embedding dimension
+        d_model=d_model_param,  # Embedding dimension
         out_dim=out_dim,  # Number of output features
         max_pos_encoder_length=max_seq_len,
-        nhead=8,  # Number of heads in the multiheadattention models
-        num_layers=3,
-        dropout=0.1
+        nhead=nhead_param,  # Number of heads in the multiheadattention models
+        num_layers=num_layers_param,
+        dropout=dropout_param
     )
     
     return model    
@@ -46,12 +50,12 @@ def load_timeseries_transformer_encoder_model(path:str) -> ts_tr_enc_model.Trans
     model = ts_tr_enc_model.TransformerEncoderModel.load_from_checkpoint(
         path,
         input_dim=input_dim,  # Number of input features
-        d_model=16,  # Embedding dimension
+        d_model=d_model_param,  # Embedding dimension
         out_dim=out_dim,  # Number of output features
         max_pos_encoder_length=max_seq_len,
-        nhead=8,  # Number of heads in the multiheadattention models
-        num_layers=3,
-        dropout=0.1
+        nhead=nhead_param,  # Number of heads in the multiheadattention models
+        num_layers=num_layers_param,
+        dropout=dropout_param
     )
     
     return model

@@ -65,8 +65,10 @@ class TransformerEncoderModel(L.LightningModule):
         loss = nn.MSELoss()(y_hat, y)
         self.log('train_loss', loss, on_epoch=True, on_step=True, prog_bar=True)
         
+        """
         r2 = self.train_r2(y_hat, y)
         self.log('train_r2', r2, on_epoch=True)
+        """
         
         return loss
 
@@ -76,8 +78,10 @@ class TransformerEncoderModel(L.LightningModule):
         loss = nn.MSELoss()(y_hat, y)
         self.log('val_loss', loss, on_epoch=True, prog_bar=True)
         
+        """
         r2 = self.train_r2(y_hat, y)
         self.log('val_r2', r2, on_epoch=True)
+        """
         
         return loss
 
