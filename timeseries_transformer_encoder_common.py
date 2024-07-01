@@ -14,9 +14,16 @@ scaling_column_groups:dict[str, list[str]] = {'value1_sum_value2': []}
 prediction_distance:int = 8
 """
 
+"""
+sequences:list[tuple[int,list[str]]] = [(512, ['result1', 'result2', 'value1', 'value2', 'value3', 'value4', 'value5', 'value6'])]
+pred_columns:list[str] = ['result1', 'result2']
+scaling_column_groups:dict[str, list[str]] = {'result1': ['result2', 'value1', 'value2', 'value3', 'value4', 'value5', 'value6']}
+"""
+
 sequences:list[tuple[int,list[str]]] = [(512, ['result1', 'result2'])]
 pred_columns:list[str] = ['result1', 'result2']
 scaling_column_groups:dict[str, list[str]] = {'result1': ['result2']}
+
 prediction_distance:int = 8
 d_model_param:int = 8
 nhead_param:int = 4

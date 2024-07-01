@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import lightning as L
 from sklearn.base import TransformerMixin
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 from sklearn.preprocessing import StandardScaler
 
 import timeseries_dataset_for_encoder as ts_ds_encoder
@@ -30,11 +30,17 @@ class TimeSeriesDataModuleForEncoder(L.LightningDataModule):
         self.batch_size = batch_size
         self.scalers:dict[str, StandardScaler] = {fitting_column: StandardScaler() for fitting_column in scaling_column_groups}
         self.was_fit = False
+        
+        self.train_dataset : Dataset | None = None
+        self.val_dataset : Dataset | None = None
          
     def setup(self, stage=None):
         train_border = int(0.8*len(self.data))
                 
         if stage == 'fit':
+            if self.train_dataset is not None:
+                return
+            
             train_data:pd.DataFrame = self.data[:train_border]
             train_data = self.fit_transform(train_data)
         
@@ -45,6 +51,9 @@ class TimeSeriesDataModuleForEncoder(L.LightningDataModule):
                 self.train_dataset = ts_ds_encoder.TimeSeriesDatasetForEncoder(train_data, self.sequences, self.pred_columns, self.pred_distance)
 
         if stage == 'predict' or stage == 'validate':
+            if self.val_dataset is not None:
+                return
+            
             val_data:pd.DataFrame = self.data[train_border:]
             if not self.was_fit:
                 train_data:pd.DataFrame = self.data[:train_border]
@@ -59,13 +68,25 @@ class TimeSeriesDataModuleForEncoder(L.LightningDataModule):
                 self.val_dataset = ts_ds_encoder.TimeSeriesDatasetForEncoder(val_data, self.sequences, self.pred_columns, self.pred_distance)
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
+        if self.train_dataset is None:
+            self.setup(stage='fit')
+
+        if isinstance(self.train_dataset, Dataset):
+            return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
+        else:
+            raise ValueError("train_dataset is not initialized")
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size)
+        if self.val_dataset is None:
+            self.setup(stage='validate')
+            
+        if isinstance(self.val_dataset, Dataset):
+            return DataLoader(self.val_dataset, batch_size=self.batch_size)
+        else:
+            raise ValueError("val_dataset is not initialized")
     
     def predict_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size)
+        return self.val_dataloader()
     
     def fit_transform(self, df:pd.DataFrame) -> pd.DataFrame:
         for fitting_column, columns in self.scaling_column_groups.items():

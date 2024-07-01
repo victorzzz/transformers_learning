@@ -37,7 +37,7 @@ if __name__ == "__main__":
     trainer = L.Trainer(
         # overfit_batches=1,
         # fast_dev_run=5,
-        max_epochs=5, 
+        max_epochs=20, 
         log_every_n_steps=5)
     
     trainer.fit(model, data_module)
